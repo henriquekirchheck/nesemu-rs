@@ -73,6 +73,10 @@ impl CPU {
             let instruction = Instruction::from_opcode(code);
 
             match instruction {
+                Instruction::ADC(OpCodeInfo { ref addressing_mode, bytes, ..}) => {
+                    self.adc(addressing_mode);
+                    self.program_counter += (bytes - 1) as u16;
+                },
                 Instruction::BRK(_) => return,
                 Instruction::TAX(_) => self.tax(),
                 Instruction::INX(_) => self.inx(),
@@ -120,6 +124,14 @@ impl CPU {
                 // _ => todo!()
             }
         }
+    }
+
+    fn adc(&mut self, mode: &AddressingMode) {
+        let addr = mode.get_operand_address(self).unwrap_read_address();
+        let value = self.mem_read(addr);
+        let (result, overflow) = self.registers.a.overflowing_add(value + self.status.carry_flag as u8);
+        self.registers.a = result;
+        self.status.update_carry_overflow_zero_neg(self.registers.a, overflow);
     }
 
     fn lda(&mut self, mode: &AddressingMode) {

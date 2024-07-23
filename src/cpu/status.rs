@@ -1,11 +1,11 @@
 #[derive(Debug, Default, Clone, Copy)]
 pub struct ProcessorStatus {
-    carry_flag: bool,
-    zero_flag: bool,
-    interrupt_disable: bool,
-    decimal: bool,
-    overflow_flag: bool,
-    negative_flag: bool,
+    pub carry_flag: bool,
+    pub zero_flag: bool,
+    pub interrupt_disable: bool,
+    pub decimal: bool,
+    pub overflow_flag: bool,
+    pub negative_flag: bool,
 }
 
 impl ProcessorStatus {
@@ -18,6 +18,11 @@ impl ProcessorStatus {
         self.carry_flag = value1 >= value2;
         self.zero_flag = value1 == value2;
         self.negative_flag = (value1 - value2) & 0b1000_0000 != 0;
+    }
+
+    pub fn update_carry_overflow_zero_neg(&mut self, value: u8, overflow: bool) {
+        self.update_zero_neg_flags(value);
+        self.carry_flag = overflow;
     }
 
     pub fn reset(&mut self) {
