@@ -4,7 +4,7 @@ use super::{mem::Memory, CPU};
  * If the OpCode does not support Implicit, Accumulator, or Relative addressing modes
    you should be able to call unwrap on the info you want
  */
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(non_camel_case_types)]
 pub enum AddressingMode {
     Implicit,
@@ -26,6 +26,7 @@ pub enum AddressingMode {
     Indirect_Y,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AddressingResult {
     ReadAddress(u16),
     ImplicitOperation,

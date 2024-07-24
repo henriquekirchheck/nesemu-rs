@@ -2,6 +2,7 @@
 
 use super::addressing_mode::AddressingMode;
 
+#[derive(Debug, Clone)]
 pub struct OpCodeInfo {
     pub addressing_mode: AddressingMode,
     pub bytes: u8,
@@ -10,6 +11,7 @@ pub struct OpCodeInfo {
 
 macro_rules! create_opcodes {
     ($( $instruction:ident => [$( { opcode: $opcode:expr, addressing_mode: $addressing_mode:ident, bytes: $bytes:expr, cycles: $cycles:expr } ),+ $(,)?]);+;) => {
+        #[derive(Debug, Clone)]
         pub enum Instruction {
             $($instruction(OpCodeInfo),)+
         }

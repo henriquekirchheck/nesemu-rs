@@ -5,7 +5,7 @@ mod registers;
 mod status;
 
 use addressing_mode::AddressingMode;
-use mem::Memory;
+use mem::{Memory, Stack, STACK, STACK_RESET};
 use registers::Registers;
 use status::ProcessorStatus;
 
@@ -16,6 +16,7 @@ pub struct CPU {
     registers: Registers,
     status: ProcessorStatus,
     memory: [u8; 0xFFFF],
+    stack_pointer: u8,
 }
 
 impl Memory for CPU {
@@ -28,10 +29,23 @@ impl Memory for CPU {
     }
 }
 
+impl Stack for CPU {
+    fn stack_pop(&mut self) -> u8 {
+        self.stack_pointer = self.stack_pointer.wrapping_add(1);
+        self.mem_read(STACK + self.stack_pointer as u16)
+    }
+
+    fn stack_push(&mut self, data: u8) {
+        self.mem_write(STACK + self.stack_pointer as u16, data);
+        self.stack_pointer = self.stack_pointer.wrapping_sub(1);
+    }
+}
+
 impl CPU {
     pub fn new() -> Self {
         CPU {
             program_counter: 0,
+            stack_pointer: STACK_RESET,
             registers: Registers::default(),
             status: ProcessorStatus::default(),
             memory: [0; 0xFFFF],
@@ -72,37 +86,169 @@ impl CPU {
 
             let instruction = Instruction::from_opcode(code);
 
-            match instruction {
-                Instruction::ADC(OpCodeInfo { ref addressing_mode, bytes, ..}) => {
+            let advance = match instruction {
+                Instruction::ADC(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
                     self.adc(addressing_mode);
-                    self.program_counter += (bytes - 1) as u16;
-                },
-                Instruction::BRK(_) => return,
-                Instruction::TAX(_) => self.tax(),
-                Instruction::INX(_) => self.inx(),
-                Instruction::LDA(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.lda(addressing_mode);
-                    self.program_counter += (bytes - 1) as u16;
+                    bytes
                 }
-                Instruction::STA(OpCodeInfo {
+                Instruction::AND(OpCodeInfo {
                     ref addressing_mode,
                     bytes,
                     ..
                 }) => {
-                    self.sta(addressing_mode);
-                    self.program_counter += (bytes - 1) as u16;
+                    self.and(addressing_mode);
+                    bytes
+                }
+                Instruction::ASL(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.asl(addressing_mode);
+                    bytes
+                }
+                Instruction::BCC(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.branch(
+                        !self.status.carry_flag,
+                        addressing_mode
+                            .get_operand_address(self)
+                            .unwrap_relative_offset(),
+                    );
+                    bytes
+                }
+                Instruction::BCS(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.branch(
+                        self.status.carry_flag,
+                        addressing_mode
+                            .get_operand_address(self)
+                            .unwrap_relative_offset(),
+                    );
+                    bytes
+                }
+                Instruction::BEQ(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.branch(
+                        self.status.zero_flag,
+                        addressing_mode
+                            .get_operand_address(self)
+                            .unwrap_relative_offset(),
+                    );
+                    bytes
+                }
+                Instruction::BIT(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.bit(addressing_mode);
+                    bytes
+                }
+                Instruction::BMI(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.branch(
+                        self.status.negative_flag,
+                        addressing_mode
+                            .get_operand_address(self)
+                            .unwrap_relative_offset(),
+                    );
+                    bytes
+                }
+                Instruction::BNE(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.branch(
+                        !self.status.zero_flag,
+                        addressing_mode
+                            .get_operand_address(self)
+                            .unwrap_relative_offset(),
+                    );
+                    bytes
+                }
+                Instruction::BPL(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.branch(
+                        !self.status.negative_flag,
+                        addressing_mode
+                            .get_operand_address(self)
+                            .unwrap_relative_offset(),
+                    );
+                    bytes
+                }
+                Instruction::BRK(_) => {
+                    return;
+                }
+                Instruction::BVC(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.branch(
+                        !self.status.overflow_flag,
+                        addressing_mode
+                            .get_operand_address(self)
+                            .unwrap_relative_offset(),
+                    );
+                    bytes
+                }
+                Instruction::BVS(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.branch(
+                        self.status.overflow_flag,
+                        addressing_mode
+                            .get_operand_address(self)
+                            .unwrap_relative_offset(),
+                    );
+                    bytes
+                }
+                Instruction::CLC(OpCodeInfo { bytes, .. }) => {
+                    self.status.carry_flag = false;
+                    bytes
+                }
+                Instruction::CLD(OpCodeInfo { bytes, .. }) => {
+                    self.status.decimal = false;
+                    bytes
+                }
+                Instruction::CLI(OpCodeInfo { bytes, .. }) => {
+                    self.status.interrupt_disable = false;
+                    bytes
+                }
+                Instruction::CLV(OpCodeInfo { bytes, .. }) => {
+                    self.status.overflow_flag = false;
+                    bytes
                 }
                 Instruction::CMP(OpCodeInfo {
                     ref addressing_mode,
                     bytes,
                     ..
                 }) => {
-                    self.cpx(addressing_mode);
-                    self.program_counter += (bytes - 1) as u16;
+                    self.cmp(addressing_mode);
+                    bytes
                 }
                 Instruction::CPX(OpCodeInfo {
                     ref addressing_mode,
@@ -110,7 +256,7 @@ impl CPU {
                     ..
                 }) => {
                     self.cpx(addressing_mode);
-                    self.program_counter += (bytes - 1) as u16;
+                    bytes
                 }
                 Instruction::CPY(OpCodeInfo {
                     ref addressing_mode,
@@ -118,20 +264,325 @@ impl CPU {
                     ..
                 }) => {
                     self.cpy(addressing_mode);
-                    self.program_counter += (bytes - 1) as u16;
+                    bytes
+                }
+                Instruction::DEC(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.dec(addressing_mode);
+                    bytes
+                }
+                Instruction::DEX(OpCodeInfo { bytes, .. }) => {
+                    self.dex();
+                    bytes
+                }
+                Instruction::DEY(OpCodeInfo { bytes, .. }) => {
+                    self.dey();
+                    bytes
+                }
+                Instruction::EOR(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.eor(addressing_mode);
+                    bytes
+                }
+                Instruction::INC(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.inc(addressing_mode);
+                    bytes
+                }
+                Instruction::INX(OpCodeInfo { bytes, .. }) => {
+                    self.inx();
+                    bytes
+                }
+                Instruction::INY(OpCodeInfo { bytes, .. }) => {
+                    self.iny();
+                    bytes
+                }
+                Instruction::JMP(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.jmp(addressing_mode);
+                    bytes
+                }
+                Instruction::JSR(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.jsr(addressing_mode, bytes);
+                    bytes
+                }
+                Instruction::LDA(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.lda(addressing_mode);
+                    bytes
+                }
+                Instruction::LDX(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.ldx(addressing_mode);
+                    bytes
+                }
+                Instruction::LDY(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.ldy(addressing_mode);
+                    bytes
+                }
+                Instruction::LSR(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.lsr(addressing_mode);
+                    bytes
+                }
+                Instruction::NOP(OpCodeInfo { bytes, .. }) => bytes,
+                Instruction::ORA(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.ora(addressing_mode);
+                    bytes
+                }
+                Instruction::PHA(OpCodeInfo { bytes, .. }) => {
+                    self.pha();
+                    bytes
+                }
+                Instruction::PHP(OpCodeInfo { bytes, .. }) => {
+                    self.php();
+                    bytes
+                }
+                Instruction::PLA(OpCodeInfo { bytes, .. }) => {
+                    self.pla();
+                    bytes
+                }
+                Instruction::PLP(OpCodeInfo { bytes, .. }) => {
+                    self.plp();
+                    bytes
                 }
 
-                // _ => todo!()
-            }
+                // Continue here
+                Instruction::TAX(OpCodeInfo { bytes, .. }) => {
+                    self.tax();
+                    bytes
+                }
+                Instruction::STA(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.sta(addressing_mode);
+                    bytes
+                }
+                x => unimplemented!("{x:?}"),
+            };
+
+            self.program_counter += (advance - 1) as u16
         }
     }
 
     fn adc(&mut self, mode: &AddressingMode) {
         let addr = mode.get_operand_address(self).unwrap_read_address();
         let value = self.mem_read(addr);
-        let (result, overflow) = self.registers.a.overflowing_add(value + self.status.carry_flag as u8);
+        let (result, overflow) = self
+            .registers
+            .a
+            .overflowing_add(value + self.status.carry_flag as u8);
         self.registers.a = result;
-        self.status.update_carry_overflow_zero_neg(self.registers.a, overflow);
+        self.status
+            .update_carry_overflow_zero_neg(self.registers.a, overflow);
+    }
+
+    fn and(&mut self, mode: &AddressingMode) {
+        let addr = mode.get_operand_address(self).unwrap_read_address();
+        let value = self.mem_read(addr);
+        self.registers.a = self.registers.a & value;
+        self.status.update_zero_neg_flags(self.registers.a);
+    }
+
+    fn asl(&mut self, mode: &AddressingMode) {
+        let addr_res = mode.get_operand_address(self);
+        let (result, overflow) = match addr_res {
+            addressing_mode::AddressingResult::AccumulatorOperation => {
+                let (result, overflow) = self.registers.a.overflowing_shl(1);
+                self.registers.a = result;
+                (result, overflow)
+            }
+            addressing_mode::AddressingResult::ReadAddress(addr) => {
+                let (result, overflow) = self.mem_read(addr).overflowing_shl(1);
+                self.mem_write(addr, result);
+                (result, overflow)
+            }
+            x => panic!("asl does not support {x:?}"),
+        };
+        self.status.update_carry_overflow_zero_neg(result, overflow);
+    }
+
+    fn rol(&mut self, mode: &AddressingMode) {
+        let addr_res = mode.get_operand_address(self);
+        let (old_bit7, new_bit7) = match addr_res {
+            addressing_mode::AddressingResult::AccumulatorOperation => {
+                let old_bit7 = self.registers.a & 0b1000_0000 != 0;
+                let result = (self.registers.a << 1) | self.status.carry_flag as u8;
+                self.registers.a = result;
+                let new_bit7 = result & 0b1000_0000 != 0;
+                (old_bit7, new_bit7)
+            }
+            addressing_mode::AddressingResult::ReadAddress(addr) => {
+                let value = self.mem_read(addr);
+                let old_bit7 = value & 0b1000_0000 != 0;
+                let result = (value << 1) | self.status.carry_flag as u8;
+                self.mem_write(addr, result);
+                let new_bit7 = result & 0b1000_0000 != 0;
+                (old_bit7, new_bit7)
+            }
+            x => panic!("asl does not support {x:?}"),
+        };
+        self.status.zero_flag = self.registers.a == 0;
+        self.status.negative_flag = new_bit7;
+        self.status.carry_flag = old_bit7;
+    }
+    // TODO: ROR
+    // fn ror(&mut self, mode: &AddressingMode) {
+    //     let addr_res = mode.get_operand_address(self);
+    //     let (old_bit0, new_bit7) = match addr_res {
+    //         addressing_mode::AddressingResult::AccumulatorOperation => {
+    //             let old_bit0 = self.registers.a & 1 != 0;
+    //             let result = (self.registers.a << 1) | self.status.carry_flag as u8;
+    //             self.registers.a = result;
+    //             let new_bit7 = result & 0b1000_0000 != 0;
+    //             (old_bit0, new_bit7)
+    //         }
+    //         addressing_mode::AddressingResult::ReadAddress(addr) => {
+    //             let value = self.mem_read(addr);
+    //             let old_bit7 = value & 0b1000_0000 != 0;
+    //             let result = (value << 1) | self.status.carry_flag as u8;
+    //             self.mem_write(addr, result);
+    //             let new_bit7 = result & 0b1000_0000 != 0;
+    //             (old_bit7, new_bit7)
+    //         }
+    //         x => panic!("asl does not support {x:?}"),
+    //     };
+    //     self.status.zero_flag = self.registers.a == 0;
+    //     self.status.negative_flag = new_bit7;
+    //     self.status.carry_flag = old_bit0;
+    // }
+
+    fn lsr(&mut self, mode: &AddressingMode) {
+        let addr_res = mode.get_operand_address(self);
+        let (result, carry) = match addr_res {
+            addressing_mode::AddressingResult::AccumulatorOperation => {
+                let carry = self.registers.a & 1 == 1;
+                let result = self.registers.a >> 1;
+                self.registers.a = result;
+                (result, carry)
+            }
+            addressing_mode::AddressingResult::ReadAddress(addr) => {
+                let value = self.mem_read(addr);
+                let carry = value & 1 == 1;
+                let result = value >> 1;
+                self.mem_write(addr, result);
+                (result, carry)
+            }
+            x => panic!("lsr does not support {x:?}"),
+        };
+        self.status.update_zero_neg_flags(result);
+        self.status.carry_flag = carry;
+    }
+
+    fn bit(&mut self, mode: &AddressingMode) {
+        let addr = mode.get_operand_address(self).unwrap_read_address();
+        let value = self.mem_read(addr);
+        let result = self.registers.a & value;
+        self.status.zero_flag = result == 0;
+        self.status.negative_flag = (value & 0b1000_0000) != 0;
+        self.status.overflow_flag = (value & 0b0100_0000) != 0;
+    }
+
+    fn dec(&mut self, mode: &AddressingMode) {
+        let addr = mode.get_operand_address(self).unwrap_read_address();
+        let value = self.mem_read(addr);
+        let result = value.wrapping_sub(1);
+        self.mem_write(addr, result);
+        self.status.update_zero_neg_flags(result);
+    }
+
+    fn dex(&mut self) {
+        self.registers.x = self.registers.x.wrapping_sub(1);
+        self.status.update_zero_neg_flags(self.registers.x);
+    }
+
+    fn dey(&mut self) {
+        self.registers.y = self.registers.y.wrapping_sub(1);
+        self.status.update_zero_neg_flags(self.registers.y);
+    }
+
+    fn eor(&mut self, mode: &AddressingMode) {
+        let addr = mode.get_operand_address(self).unwrap_read_address();
+        let value = self.mem_read(addr);
+        self.registers.a = self.registers.a ^ value;
+        self.status.update_zero_neg_flags(self.registers.a)
+    }
+
+    fn inc(&mut self, mode: &AddressingMode) {
+        let addr = mode.get_operand_address(self).unwrap_read_address();
+        let value = self.mem_read(addr);
+        let result = value.wrapping_add(1);
+        self.mem_write(addr, result);
+        self.status.update_zero_neg_flags(result);
+    }
+
+    fn inx(&mut self) {
+        self.registers.x = self.registers.x.wrapping_add(1);
+        self.status.update_zero_neg_flags(self.registers.x);
+    }
+
+    fn iny(&mut self) {
+        self.registers.y = self.registers.y.wrapping_add(1);
+        self.status.update_zero_neg_flags(self.registers.y);
+    }
+
+    fn jmp(&mut self, mode: &AddressingMode) {
+        let mem_address = AddressingMode::Absolute
+            .get_operand_address(self)
+            .unwrap_read_address();
+        match mode {
+            AddressingMode::Absolute => self.program_counter = mem_address,
+            AddressingMode::Indirect => {
+                self.program_counter = if mem_address & 0x00FF == 0x00FF {
+                    let lo = self.mem_read(mem_address);
+                    let hi = self.mem_read(mem_address & 0xFF00);
+                    (hi as u16) << 8 | (lo as u16)
+                } else {
+                    self.mem_read_u16(mem_address)
+                };
+            }
+            x => panic!("Invalid addressing mode for jmp: {x:?}"),
+        }
+    }
+
+    fn jsr(&mut self, mode: &AddressingMode, bytes: u8) {
+        self.stack_push_u16(self.program_counter + (bytes as u16 - 1) - 1);
+        self.program_counter = mode.get_operand_address(self).unwrap_read_address();
     }
 
     fn lda(&mut self, mode: &AddressingMode) {
@@ -140,6 +591,44 @@ impl CPU {
 
         self.registers.a = value;
         self.status.update_zero_neg_flags(self.registers.a);
+    }
+    fn ldx(&mut self, mode: &AddressingMode) {
+        let addr = mode.get_operand_address(self).unwrap_read_address();
+        let value = self.mem_read(addr);
+
+        self.registers.x = value;
+        self.status.update_zero_neg_flags(self.registers.x);
+    }
+    fn ldy(&mut self, mode: &AddressingMode) {
+        let addr = mode.get_operand_address(self).unwrap_read_address();
+        let value = self.mem_read(addr);
+
+        self.registers.y = value;
+        self.status.update_zero_neg_flags(self.registers.y);
+    }
+
+    fn ora(&mut self, mode: &AddressingMode) {
+        let addr = mode.get_operand_address(self).unwrap_read_address();
+        let value = self.mem_read(addr);
+        self.registers.a = self.registers.a | value;
+        self.status.update_zero_neg_flags(self.registers.a);
+    }
+
+    fn pha(&mut self) {
+        self.stack_push(self.registers.a);
+    }
+
+    fn php(&mut self) {
+        self.stack_push(self.status.into());
+    }
+
+    fn pla(&mut self) {
+        self.registers.a = self.stack_pop();
+        self.status.update_zero_neg_flags(self.registers.a);
+    }
+
+    fn plp(&mut self) {
+        self.status = self.stack_pop().into();
     }
 
     fn sta(&mut self, mode: &AddressingMode) {
@@ -173,9 +662,13 @@ impl CPU {
         self.status.update_zero_neg_flags(self.registers.x)
     }
 
-    fn inx(&mut self) {
-        self.registers.x = self.registers.x.wrapping_add(1);
-        self.status.update_zero_neg_flags(self.registers.x)
+    fn branch(&mut self, condition: bool, offset: i8) {
+        if condition {
+            self.program_counter = self
+                .program_counter
+                .wrapping_add(1)
+                .wrapping_add(offset as u16);
+        }
     }
 }
 

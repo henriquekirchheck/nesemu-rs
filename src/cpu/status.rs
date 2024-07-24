@@ -1,4 +1,4 @@
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct ProcessorStatus {
     pub carry_flag: bool,
     pub zero_flag: bool,
@@ -52,5 +52,39 @@ impl From<ProcessorStatus> for u8 {
             | (if value.interrupt_disable { 1 } else { 0 } << INTERRUPT_DISABLE_OFFSET)
             | (if value.zero_flag { 1 } else { 0 } << ZERO_FLAG_OFFSET)
             | (if value.carry_flag { 1 } else { 0 } << CARRY_FLAG_OFFSET)
+    }
+}
+
+impl From<u8> for ProcessorStatus {
+    fn from(value: u8) -> Self {
+        Self {
+            carry_flag: value & (1 << CARRY_FLAG_OFFSET) != 0,
+            zero_flag: value & (1 << ZERO_FLAG_OFFSET) != 0,
+            interrupt_disable: value & (1 << INTERRUPT_DISABLE_OFFSET) != 0,
+            decimal: value & (1 << DECIMAL_OFFSET) != 0,
+            overflow_flag: value & (1 << OVERFLOW_FLAG_OFFSET) != 0,
+            negative_flag: value & (1 << NEGATIVE_FLAG_OFFSET) != 0,
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::ProcessorStatus;
+
+    #[test]
+    fn test_from_eq() {
+        let status = ProcessorStatus {
+            carry_flag: true,
+            zero_flag: true,
+            interrupt_disable: true,
+            decimal: true,
+            overflow_flag: true,
+            negative_flag: true,
+        };
+        let bin: u8 = status.into();
+        let back: ProcessorStatus = bin.into();
+
+        assert_eq!(status, back)
     }
 }
