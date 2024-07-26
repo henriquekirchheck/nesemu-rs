@@ -313,11 +313,10 @@ impl CPU {
                 }
                 Instruction::JMP(OpCodeInfo {
                     ref addressing_mode,
-                    bytes,
                     ..
                 }) => {
                     self.jmp(addressing_mode);
-                    bytes
+                    1
                 }
                 Instruction::JSR(OpCodeInfo {
                     ref addressing_mode,
@@ -325,7 +324,7 @@ impl CPU {
                     ..
                 }) => {
                     self.jsr(addressing_mode, bytes);
-                    bytes
+                    1
                 }
                 Instruction::LDA(OpCodeInfo {
                     ref addressing_mode,

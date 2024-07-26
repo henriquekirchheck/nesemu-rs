@@ -1,6 +1,12 @@
 use nes_rs::cpu::mem::Memory;
 use nes_rs::cpu::CPU;
-use sdl2::{event::Event, keyboard::Keycode, pixels::PixelFormatEnum, EventPump};
+use rand::Rng;
+use sdl2::{
+    event::Event,
+    keyboard::Keycode,
+    pixels::{Color, PixelFormatEnum},
+    EventPump,
+};
 
 const GAME_CODE: [u8; 309] = [
     0x20, 0x06, 0x06, 0x20, 0x38, 0x06, 0x20, 0x0d, 0x06, 0x20, 0x2a, 0x06, 0x60, 0xa9, 0x02, 0x85,
@@ -43,12 +49,54 @@ fn main() {
         .create_texture_target(PixelFormatEnum::RGB24, 32, 32)
         .unwrap();
 
+    let mut screen_state = [0 as u8; 32 * 3 * 32];
+    let mut rng = rand::thread_rng();
+
     let mut cpu = CPU::new();
     cpu.load(&GAME_CODE);
     cpu.reset();
     cpu.run_with_callback(move |cpu| {
-        handle_user_input(cpu, &mut event_pump)
-    })
+        handle_user_input(cpu, &mut event_pump);
+        cpu.mem_write(0xfe, rng.gen_range(1..16));
+
+        if read_screen_state(cpu, &mut screen_state) {
+            texture.update(None, &screen_state, 32 * 3).unwrap();
+            canvas.copy(&texture, None, None).unwrap();
+            canvas.present();
+        }
+
+        std::thread::sleep(std::time::Duration::new(0, 70_000));
+    });
+}
+
+fn color(byte: u8) -> Color {
+    match byte {
+        0 => Color::BLACK,
+        1 => Color::WHITE,
+        2 | 9 => Color::GRAY,
+        3 | 10 => Color::RED,
+        4 | 11 => Color::GREEN,
+        5 | 12 => Color::BLUE,
+        6 | 13 => Color::MAGENTA,
+        7 | 14 => Color::YELLOW,
+        _ => Color::CYAN,
+    }
+}
+
+fn read_screen_state(cpu: &mut CPU, frame: &mut [u8; 32 * 3 * 32]) -> bool {
+    let mut frame_idx = 0;
+    let mut update = false;
+    for i in 0x0200..0x0600 {
+        let (b1, b2, b3) = color(cpu.mem_read(i)).rgb();
+        if frame[frame_idx] != b1 || frame[frame_idx + 1] != b2 || frame[frame_idx + 2] != b3 {
+            frame[frame_idx] = b1;
+            frame[frame_idx + 1] = b2;
+            frame[frame_idx + 2] = b3;
+            update = true;
+        }
+        frame_idx += 3
+    }
+    update
 }
 
 fn handle_user_input(cpu: &mut CPU, event_pump: &mut EventPump) {
