@@ -1,5 +1,5 @@
 mod addressing_mode;
-mod mem;
+pub mod mem;
 mod opcodes;
 mod registers;
 mod status;
@@ -59,8 +59,8 @@ impl CPU {
     }
 
     pub fn load(&mut self, program: &[u8]) {
-        self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(program);
-        self.mem_write_u16(0xFFFC, 0x8000)
+        self.memory[0x6000..(0x6000 + program.len())].copy_from_slice(program);
+        self.mem_write_u16(0xFFFC, 0x6000)
     }
 
     pub fn load_and_run(&mut self, program: &[u8]) {
@@ -80,7 +80,12 @@ impl CPU {
     }
 
     pub fn run(&mut self) {
+        self.run_with_callback(|_| {});
+    }
+
+    pub fn run_with_callback(&mut self, mut callback: impl FnMut(&mut CPU)) {
         loop {
+            callback(self);
             let code = self.mem_read(self.program_counter);
             self.program_counter += 1;
 
