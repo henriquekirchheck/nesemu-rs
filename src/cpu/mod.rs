@@ -379,10 +379,49 @@ impl CPU {
                     self.plp();
                     bytes
                 }
-
-                // Continue here
-                Instruction::TAX(OpCodeInfo { bytes, .. }) => {
-                    self.tax();
+                Instruction::ROL(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.rol(addressing_mode);
+                    bytes
+                }
+                Instruction::ROR(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.rol(addressing_mode);
+                    bytes
+                }
+                Instruction::RTI(OpCodeInfo { bytes, .. }) => {
+                    self.plp();
+                    self.program_counter = self.stack_pop_u16();
+                    bytes
+                }
+                Instruction::RTS(OpCodeInfo { bytes, .. }) => {
+                    self.program_counter = self.stack_pop_u16() - 1;
+                    bytes
+                }
+                Instruction::SBC(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.sbc(addressing_mode);
+                    bytes
+                }
+                Instruction::SEC(OpCodeInfo { bytes, .. }) => {
+                    self.status.carry_flag = true;
+                    bytes
+                }
+                Instruction::SED(OpCodeInfo { bytes, .. }) => {
+                    self.status.decimal = true;
+                    bytes
+                }
+                Instruction::SEI(OpCodeInfo { bytes, .. }) => {
+                    self.status.interrupt_disable = true;
                     bytes
                 }
                 Instruction::STA(OpCodeInfo {
@@ -393,7 +432,46 @@ impl CPU {
                     self.sta(addressing_mode);
                     bytes
                 }
-                x => unimplemented!("{x:?}"),
+                Instruction::STX(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.stx(addressing_mode);
+                    bytes
+                }
+                Instruction::STY(OpCodeInfo {
+                    ref addressing_mode,
+                    bytes,
+                    ..
+                }) => {
+                    self.sty(addressing_mode);
+                    bytes
+                }
+                Instruction::TAX(OpCodeInfo { bytes, .. }) => {
+                    self.tax();
+                    bytes
+                }
+                Instruction::TAY(OpCodeInfo { bytes, .. }) => {
+                    self.tay();
+                    bytes
+                }
+                Instruction::TSX(OpCodeInfo { bytes, .. }) => {
+                    self.tsx();
+                    bytes
+                }
+                Instruction::TXA(OpCodeInfo { bytes, .. }) => {
+                    self.txa();
+                    bytes
+                }
+                Instruction::TXS(OpCodeInfo { bytes, .. }) => {
+                    self.txs();
+                    bytes
+                }
+                Instruction::TYA(OpCodeInfo { bytes, .. }) => {
+                    self.tya();
+                    bytes
+                }
             };
 
             self.program_counter += (advance - 1) as u16
@@ -403,11 +481,16 @@ impl CPU {
     fn adc(&mut self, mode: &AddressingMode) {
         let addr = mode.get_operand_address(self).unwrap_read_address();
         let value = self.mem_read(addr);
-        let (result, overflow) = self
-            .registers
-            .a
-            .overflowing_add(value + self.status.carry_flag as u8);
-        self.registers.a = result;
+        let (result, overflow) = self.registers.a.overflowing_add(value);
+        self.registers.a = result + self.status.carry_flag as u8;
+        self.status
+            .update_carry_overflow_zero_neg(self.registers.a, overflow);
+    }
+    fn sbc(&mut self, mode: &AddressingMode) {
+        let addr = mode.get_operand_address(self).unwrap_read_address();
+        let value = self.mem_read(addr);
+        let (result, overflow) = self.registers.a.overflowing_sub(value);
+        self.registers.a = result - !self.status.carry_flag as u8;
         self.status
             .update_carry_overflow_zero_neg(self.registers.a, overflow);
     }
@@ -455,37 +538,36 @@ impl CPU {
                 let new_bit7 = result & 0b1000_0000 != 0;
                 (old_bit7, new_bit7)
             }
-            x => panic!("asl does not support {x:?}"),
+            x => panic!("rol does not support {x:?}"),
         };
         self.status.zero_flag = self.registers.a == 0;
         self.status.negative_flag = new_bit7;
         self.status.carry_flag = old_bit7;
     }
-    // TODO: ROR
-    // fn ror(&mut self, mode: &AddressingMode) {
-    //     let addr_res = mode.get_operand_address(self);
-    //     let (old_bit0, new_bit7) = match addr_res {
-    //         addressing_mode::AddressingResult::AccumulatorOperation => {
-    //             let old_bit0 = self.registers.a & 1 != 0;
-    //             let result = (self.registers.a << 1) | self.status.carry_flag as u8;
-    //             self.registers.a = result;
-    //             let new_bit7 = result & 0b1000_0000 != 0;
-    //             (old_bit0, new_bit7)
-    //         }
-    //         addressing_mode::AddressingResult::ReadAddress(addr) => {
-    //             let value = self.mem_read(addr);
-    //             let old_bit7 = value & 0b1000_0000 != 0;
-    //             let result = (value << 1) | self.status.carry_flag as u8;
-    //             self.mem_write(addr, result);
-    //             let new_bit7 = result & 0b1000_0000 != 0;
-    //             (old_bit7, new_bit7)
-    //         }
-    //         x => panic!("asl does not support {x:?}"),
-    //     };
-    //     self.status.zero_flag = self.registers.a == 0;
-    //     self.status.negative_flag = new_bit7;
-    //     self.status.carry_flag = old_bit0;
-    // }
+    fn ror(&mut self, mode: &AddressingMode) {
+        let addr_res = mode.get_operand_address(self);
+        let (old_bit0, new_bit7) = match addr_res {
+            addressing_mode::AddressingResult::AccumulatorOperation => {
+                let old_bit0 = self.registers.a & 1 != 0;
+                let result = (self.registers.a >> 1) | ((self.status.carry_flag as u8) << 7);
+                self.registers.a = result;
+                let new_bit7 = result & 0b1000_0000 != 0;
+                (old_bit0, new_bit7)
+            }
+            addressing_mode::AddressingResult::ReadAddress(addr) => {
+                let value = self.mem_read(addr);
+                let old_bit0 = value & 1 != 0;
+                let result = (value >> 1) | ((self.status.carry_flag as u8) << 7);
+                self.mem_write(addr, result);
+                let new_bit7 = result & 0b1000_0000 != 0;
+                (old_bit0, new_bit7)
+            }
+            x => panic!("ror does not support {x:?}"),
+        };
+        self.status.zero_flag = self.registers.a == 0;
+        self.status.negative_flag = new_bit7;
+        self.status.carry_flag = old_bit0;
+    }
 
     fn lsr(&mut self, mode: &AddressingMode) {
         let addr_res = mode.get_operand_address(self);
@@ -635,6 +717,14 @@ impl CPU {
         let addr = mode.get_operand_address(self).unwrap_read_address();
         self.mem_write(addr, self.registers.a)
     }
+    fn stx(&mut self, mode: &AddressingMode) {
+        let addr = mode.get_operand_address(self).unwrap_read_address();
+        self.mem_write(addr, self.registers.x)
+    }
+    fn sty(&mut self, mode: &AddressingMode) {
+        let addr = mode.get_operand_address(self).unwrap_read_address();
+        self.mem_write(addr, self.registers.y)
+    }
 
     fn cmp(&mut self, mode: &AddressingMode) {
         let addr = mode.get_operand_address(self).unwrap_read_address();
@@ -660,6 +750,25 @@ impl CPU {
     fn tax(&mut self) {
         self.registers.x = self.registers.a;
         self.status.update_zero_neg_flags(self.registers.x)
+    }
+    fn tay(&mut self) {
+        self.registers.y = self.registers.a;
+        self.status.update_zero_neg_flags(self.registers.y)
+    }
+    fn tsx(&mut self) {
+        self.registers.x = self.stack_pointer;
+        self.status.update_zero_neg_flags(self.registers.x)
+    }
+    fn txa(&mut self) {
+        self.registers.a = self.registers.x;
+        self.status.update_zero_neg_flags(self.registers.a)
+    }
+    fn txs(&mut self) {
+        self.stack_pointer = self.registers.x;
+    }
+    fn tya(&mut self) {
+        self.registers.a = self.registers.y;
+        self.status.update_zero_neg_flags(self.registers.a)
     }
 
     fn branch(&mut self, condition: bool, offset: i8) {
