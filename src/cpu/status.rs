@@ -17,7 +17,7 @@ impl ProcessorStatus {
     pub fn update_carry_zero_neg_cmp(&mut self, value1: u8, value2: u8) {
         self.carry_flag = value1 >= value2;
         self.zero_flag = value1 == value2;
-        self.negative_flag = (value1 - value2) & 0b1000_0000 != 0;
+        self.negative_flag = (value1.wrapping_sub(value2)) & 0b1000_0000 != 0;
     }
 
     pub fn update_carry_overflow_zero_neg(&mut self, value: u8, overflow: bool) {

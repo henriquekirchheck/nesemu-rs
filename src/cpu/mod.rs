@@ -55,12 +55,13 @@ impl CPU {
     pub fn reset(&mut self) {
         self.registers.reset();
         self.status.reset();
+        self.stack_pointer = STACK_RESET;
         self.program_counter = self.mem_read_u16(0xFFFC);
     }
 
     pub fn load(&mut self, program: &[u8]) {
-        self.memory[0x6000..(0x6000 + program.len())].copy_from_slice(program);
-        self.mem_write_u16(0xFFFC, 0x6000)
+        self.memory[0x0600..(0x0600 + program.len())].copy_from_slice(program);
+        self.mem_write_u16(0xFFFC, 0x0600)
     }
 
     pub fn load_and_run(&mut self, program: &[u8]) {
@@ -399,14 +400,14 @@ impl CPU {
                     self.rol(addressing_mode);
                     bytes
                 }
-                Instruction::RTI(OpCodeInfo { bytes, .. }) => {
+                Instruction::RTI(_) => {
                     self.plp();
                     self.program_counter = self.stack_pop_u16();
-                    bytes
+                    1
                 }
-                Instruction::RTS(OpCodeInfo { bytes, .. }) => {
+                Instruction::RTS(_) => {
                     self.program_counter = self.stack_pop_u16() - 1;
-                    bytes
+                    1
                 }
                 Instruction::SBC(OpCodeInfo {
                     ref addressing_mode,

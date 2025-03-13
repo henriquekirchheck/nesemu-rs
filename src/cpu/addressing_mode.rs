@@ -74,7 +74,7 @@ impl AddressingMode {
                 let ptr = cpu.mem_read(cpu.program_counter);
                 let lo = cpu.mem_read(ptr as u16);
                 let hi = cpu.mem_read(ptr.wrapping_add(1) as u16);
-                (hi as u16) << 8 | (lo as u16)
+                u16::from_le_bytes([lo, hi])
             }
             AddressingMode::Indirect_X => {
                 let base = cpu.mem_read(cpu.program_counter);
@@ -82,14 +82,14 @@ impl AddressingMode {
                 let ptr = base.wrapping_add(cpu.registers.x);
                 let lo = cpu.mem_read(ptr as u16);
                 let hi = cpu.mem_read(ptr.wrapping_add(1) as u16);
-                (hi as u16) << 8 | (lo as u16)
+                u16::from_le_bytes([lo, hi])
             }
             AddressingMode::Indirect_Y => {
                 let base = cpu.mem_read(cpu.program_counter);
 
                 let lo = cpu.mem_read(base as u16);
                 let hi = cpu.mem_read(base.wrapping_add(1) as u16);
-                let deref_base = (hi as u16) << 8 | (lo as u16);
+                let deref_base = u16::from_le_bytes([lo, hi]);
                 let deref = deref_base.wrapping_add(cpu.registers.y as u16);
                 deref
             }
