@@ -120,39 +120,48 @@ impl CPU {
                 bytes,
                 ..
             }) => {
-                self.branch(
+                if self.branch(
                     !self.status.carry_flag,
                     addressing_mode
                         .get_operand_address(self)
                         .unwrap_relative_offset(),
-                );
-                bytes
+                ) {
+                    1
+                } else {
+                    bytes
+                }
             }
             Instruction::BCS(OpCodeInfo {
                 ref addressing_mode,
                 bytes,
                 ..
             }) => {
-                self.branch(
+                if self.branch(
                     self.status.carry_flag,
                     addressing_mode
                         .get_operand_address(self)
                         .unwrap_relative_offset(),
-                );
-                bytes
+                ) {
+                    1
+                } else {
+                    bytes
+                }
             }
             Instruction::BEQ(OpCodeInfo {
                 ref addressing_mode,
                 bytes,
                 ..
             }) => {
-                self.branch(
+                if self.branch(
                     self.status.zero_flag,
                     addressing_mode
                         .get_operand_address(self)
                         .unwrap_relative_offset(),
-                );
-                bytes
+                ) {
+                    1
+                } else {
+                    bytes
+                }
             }
             Instruction::BIT(OpCodeInfo {
                 ref addressing_mode,
@@ -167,39 +176,48 @@ impl CPU {
                 bytes,
                 ..
             }) => {
-                self.branch(
+                if self.branch(
                     self.status.negative_flag,
                     addressing_mode
                         .get_operand_address(self)
                         .unwrap_relative_offset(),
-                );
-                bytes
+                ) {
+                    1
+                } else {
+                    bytes
+                }
             }
             Instruction::BNE(OpCodeInfo {
                 ref addressing_mode,
                 bytes,
                 ..
             }) => {
-                self.branch(
+                if self.branch(
                     !self.status.zero_flag,
                     addressing_mode
                         .get_operand_address(self)
                         .unwrap_relative_offset(),
-                );
-                bytes
+                ) {
+                    1
+                } else {
+                    bytes
+                }
             }
             Instruction::BPL(OpCodeInfo {
                 ref addressing_mode,
                 bytes,
                 ..
             }) => {
-                self.branch(
+                if self.branch(
                     !self.status.negative_flag,
                     addressing_mode
                         .get_operand_address(self)
                         .unwrap_relative_offset(),
-                );
-                bytes
+                ) {
+                    1
+                } else {
+                    bytes
+                }
             }
             Instruction::BRK(_) => {
                 return;
@@ -209,26 +227,32 @@ impl CPU {
                 bytes,
                 ..
             }) => {
-                self.branch(
+                if self.branch(
                     !self.status.overflow_flag,
                     addressing_mode
                         .get_operand_address(self)
                         .unwrap_relative_offset(),
-                );
-                bytes
+                ) {
+                    1
+                } else {
+                    bytes
+                }
             }
             Instruction::BVS(OpCodeInfo {
                 ref addressing_mode,
                 bytes,
                 ..
             }) => {
-                self.branch(
+                if self.branch(
                     self.status.overflow_flag,
                     addressing_mode
                         .get_operand_address(self)
                         .unwrap_relative_offset(),
-                );
-                bytes
+                ) {
+                    1
+                } else {
+                    bytes
+                }
             }
             Instruction::CLC(OpCodeInfo { bytes, .. }) => {
                 self.status.carry_flag = false;
@@ -780,12 +804,15 @@ impl CPU {
         self.status.update_zero_neg_flags(self.registers.a)
     }
 
-    fn branch(&mut self, condition: bool, offset: i8) {
+    fn branch(&mut self, condition: bool, offset: i8) -> bool {
         if condition {
             self.program_counter = self
                 .program_counter
                 .wrapping_add(1)
                 .wrapping_add(offset as u16);
+            true
+        } else {
+            false
         }
     }
 }
