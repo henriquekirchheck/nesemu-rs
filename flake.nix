@@ -32,6 +32,7 @@
             rustfmt
             pre-commit
             rustPackages.clippy
+            gdb
           ];
           inherit buildInputs;
           RUST_SRC_PATH = pkgs.rustPlatform.rustLibSrc;

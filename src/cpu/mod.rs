@@ -84,402 +84,406 @@ impl CPU {
         self.run_with_callback(|_| {});
     }
 
-    pub fn run_with_callback(&mut self, mut callback: impl FnMut(&mut CPU)) {
+    pub fn tick(&mut self) {
+        let code = self.mem_read(self.program_counter);
+        self.program_counter += 1;
+
+        let instruction = Instruction::from_opcode(code);
+
+        let advance = match instruction {
+            Instruction::ADC(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.adc(addressing_mode);
+                bytes
+            }
+            Instruction::AND(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.and(addressing_mode);
+                bytes
+            }
+            Instruction::ASL(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.asl(addressing_mode);
+                bytes
+            }
+            Instruction::BCC(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.branch(
+                    !self.status.carry_flag,
+                    addressing_mode
+                        .get_operand_address(self)
+                        .unwrap_relative_offset(),
+                );
+                bytes
+            }
+            Instruction::BCS(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.branch(
+                    self.status.carry_flag,
+                    addressing_mode
+                        .get_operand_address(self)
+                        .unwrap_relative_offset(),
+                );
+                bytes
+            }
+            Instruction::BEQ(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.branch(
+                    self.status.zero_flag,
+                    addressing_mode
+                        .get_operand_address(self)
+                        .unwrap_relative_offset(),
+                );
+                bytes
+            }
+            Instruction::BIT(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.bit(addressing_mode);
+                bytes
+            }
+            Instruction::BMI(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.branch(
+                    self.status.negative_flag,
+                    addressing_mode
+                        .get_operand_address(self)
+                        .unwrap_relative_offset(),
+                );
+                bytes
+            }
+            Instruction::BNE(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.branch(
+                    !self.status.zero_flag,
+                    addressing_mode
+                        .get_operand_address(self)
+                        .unwrap_relative_offset(),
+                );
+                bytes
+            }
+            Instruction::BPL(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.branch(
+                    !self.status.negative_flag,
+                    addressing_mode
+                        .get_operand_address(self)
+                        .unwrap_relative_offset(),
+                );
+                bytes
+            }
+            Instruction::BRK(_) => {
+                return;
+            }
+            Instruction::BVC(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.branch(
+                    !self.status.overflow_flag,
+                    addressing_mode
+                        .get_operand_address(self)
+                        .unwrap_relative_offset(),
+                );
+                bytes
+            }
+            Instruction::BVS(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.branch(
+                    self.status.overflow_flag,
+                    addressing_mode
+                        .get_operand_address(self)
+                        .unwrap_relative_offset(),
+                );
+                bytes
+            }
+            Instruction::CLC(OpCodeInfo { bytes, .. }) => {
+                self.status.carry_flag = false;
+                bytes
+            }
+            Instruction::CLD(OpCodeInfo { bytes, .. }) => {
+                self.status.decimal = false;
+                bytes
+            }
+            Instruction::CLI(OpCodeInfo { bytes, .. }) => {
+                self.status.interrupt_disable = false;
+                bytes
+            }
+            Instruction::CLV(OpCodeInfo { bytes, .. }) => {
+                self.status.overflow_flag = false;
+                bytes
+            }
+            Instruction::CMP(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.cmp(addressing_mode);
+                bytes
+            }
+            Instruction::CPX(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.cpx(addressing_mode);
+                bytes
+            }
+            Instruction::CPY(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.cpy(addressing_mode);
+                bytes
+            }
+            Instruction::DEC(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.dec(addressing_mode);
+                bytes
+            }
+            Instruction::DEX(OpCodeInfo { bytes, .. }) => {
+                self.dex();
+                bytes
+            }
+            Instruction::DEY(OpCodeInfo { bytes, .. }) => {
+                self.dey();
+                bytes
+            }
+            Instruction::EOR(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.eor(addressing_mode);
+                bytes
+            }
+            Instruction::INC(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.inc(addressing_mode);
+                bytes
+            }
+            Instruction::INX(OpCodeInfo { bytes, .. }) => {
+                self.inx();
+                bytes
+            }
+            Instruction::INY(OpCodeInfo { bytes, .. }) => {
+                self.iny();
+                bytes
+            }
+            Instruction::JMP(OpCodeInfo {
+                ref addressing_mode,
+                ..
+            }) => {
+                self.jmp(addressing_mode);
+                1
+            }
+            Instruction::JSR(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.jsr(addressing_mode, bytes);
+                1
+            }
+            Instruction::LDA(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.lda(addressing_mode);
+                bytes
+            }
+            Instruction::LDX(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.ldx(addressing_mode);
+                bytes
+            }
+            Instruction::LDY(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.ldy(addressing_mode);
+                bytes
+            }
+            Instruction::LSR(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.lsr(addressing_mode);
+                bytes
+            }
+            Instruction::NOP(OpCodeInfo { bytes, .. }) => bytes,
+            Instruction::ORA(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.ora(addressing_mode);
+                bytes
+            }
+            Instruction::PHA(OpCodeInfo { bytes, .. }) => {
+                self.pha();
+                bytes
+            }
+            Instruction::PHP(OpCodeInfo { bytes, .. }) => {
+                self.php();
+                bytes
+            }
+            Instruction::PLA(OpCodeInfo { bytes, .. }) => {
+                self.pla();
+                bytes
+            }
+            Instruction::PLP(OpCodeInfo { bytes, .. }) => {
+                self.plp();
+                bytes
+            }
+            Instruction::ROL(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.rol(addressing_mode);
+                bytes
+            }
+            Instruction::ROR(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.rol(addressing_mode);
+                bytes
+            }
+            Instruction::RTI(_) => {
+                self.plp();
+                self.program_counter = self.stack_pop_u16();
+                1
+            }
+            Instruction::RTS(_) => {
+                self.program_counter = self.stack_pop_u16() - 1;
+                1
+            }
+            Instruction::SBC(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.sbc(addressing_mode);
+                bytes
+            }
+            Instruction::SEC(OpCodeInfo { bytes, .. }) => {
+                self.status.carry_flag = true;
+                bytes
+            }
+            Instruction::SED(OpCodeInfo { bytes, .. }) => {
+                self.status.decimal = true;
+                bytes
+            }
+            Instruction::SEI(OpCodeInfo { bytes, .. }) => {
+                self.status.interrupt_disable = true;
+                bytes
+            }
+            Instruction::STA(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.sta(addressing_mode);
+                bytes
+            }
+            Instruction::STX(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.stx(addressing_mode);
+                bytes
+            }
+            Instruction::STY(OpCodeInfo {
+                ref addressing_mode,
+                bytes,
+                ..
+            }) => {
+                self.sty(addressing_mode);
+                bytes
+            }
+            Instruction::TAX(OpCodeInfo { bytes, .. }) => {
+                self.tax();
+                bytes
+            }
+            Instruction::TAY(OpCodeInfo { bytes, .. }) => {
+                self.tay();
+                bytes
+            }
+            Instruction::TSX(OpCodeInfo { bytes, .. }) => {
+                self.tsx();
+                bytes
+            }
+            Instruction::TXA(OpCodeInfo { bytes, .. }) => {
+                self.txa();
+                bytes
+            }
+            Instruction::TXS(OpCodeInfo { bytes, .. }) => {
+                self.txs();
+                bytes
+            }
+            Instruction::TYA(OpCodeInfo { bytes, .. }) => {
+                self.tya();
+                bytes
+            }
+        };
+
+        self.program_counter += (advance - 1) as u16
+    }
+
+    pub fn run_with_callback(&mut self, mut callback: impl FnMut(&mut CPU)) -> ! {
         loop {
             callback(self);
-            let code = self.mem_read(self.program_counter);
-            self.program_counter += 1;
-
-            let instruction = Instruction::from_opcode(code);
-
-            let advance = match instruction {
-                Instruction::ADC(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.adc(addressing_mode);
-                    bytes
-                }
-                Instruction::AND(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.and(addressing_mode);
-                    bytes
-                }
-                Instruction::ASL(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.asl(addressing_mode);
-                    bytes
-                }
-                Instruction::BCC(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.branch(
-                        !self.status.carry_flag,
-                        addressing_mode
-                            .get_operand_address(self)
-                            .unwrap_relative_offset(),
-                    );
-                    bytes
-                }
-                Instruction::BCS(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.branch(
-                        self.status.carry_flag,
-                        addressing_mode
-                            .get_operand_address(self)
-                            .unwrap_relative_offset(),
-                    );
-                    bytes
-                }
-                Instruction::BEQ(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.branch(
-                        self.status.zero_flag,
-                        addressing_mode
-                            .get_operand_address(self)
-                            .unwrap_relative_offset(),
-                    );
-                    bytes
-                }
-                Instruction::BIT(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.bit(addressing_mode);
-                    bytes
-                }
-                Instruction::BMI(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.branch(
-                        self.status.negative_flag,
-                        addressing_mode
-                            .get_operand_address(self)
-                            .unwrap_relative_offset(),
-                    );
-                    bytes
-                }
-                Instruction::BNE(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.branch(
-                        !self.status.zero_flag,
-                        addressing_mode
-                            .get_operand_address(self)
-                            .unwrap_relative_offset(),
-                    );
-                    bytes
-                }
-                Instruction::BPL(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.branch(
-                        !self.status.negative_flag,
-                        addressing_mode
-                            .get_operand_address(self)
-                            .unwrap_relative_offset(),
-                    );
-                    bytes
-                }
-                Instruction::BRK(_) => {
-                    return;
-                }
-                Instruction::BVC(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.branch(
-                        !self.status.overflow_flag,
-                        addressing_mode
-                            .get_operand_address(self)
-                            .unwrap_relative_offset(),
-                    );
-                    bytes
-                }
-                Instruction::BVS(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.branch(
-                        self.status.overflow_flag,
-                        addressing_mode
-                            .get_operand_address(self)
-                            .unwrap_relative_offset(),
-                    );
-                    bytes
-                }
-                Instruction::CLC(OpCodeInfo { bytes, .. }) => {
-                    self.status.carry_flag = false;
-                    bytes
-                }
-                Instruction::CLD(OpCodeInfo { bytes, .. }) => {
-                    self.status.decimal = false;
-                    bytes
-                }
-                Instruction::CLI(OpCodeInfo { bytes, .. }) => {
-                    self.status.interrupt_disable = false;
-                    bytes
-                }
-                Instruction::CLV(OpCodeInfo { bytes, .. }) => {
-                    self.status.overflow_flag = false;
-                    bytes
-                }
-                Instruction::CMP(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.cmp(addressing_mode);
-                    bytes
-                }
-                Instruction::CPX(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.cpx(addressing_mode);
-                    bytes
-                }
-                Instruction::CPY(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.cpy(addressing_mode);
-                    bytes
-                }
-                Instruction::DEC(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.dec(addressing_mode);
-                    bytes
-                }
-                Instruction::DEX(OpCodeInfo { bytes, .. }) => {
-                    self.dex();
-                    bytes
-                }
-                Instruction::DEY(OpCodeInfo { bytes, .. }) => {
-                    self.dey();
-                    bytes
-                }
-                Instruction::EOR(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.eor(addressing_mode);
-                    bytes
-                }
-                Instruction::INC(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.inc(addressing_mode);
-                    bytes
-                }
-                Instruction::INX(OpCodeInfo { bytes, .. }) => {
-                    self.inx();
-                    bytes
-                }
-                Instruction::INY(OpCodeInfo { bytes, .. }) => {
-                    self.iny();
-                    bytes
-                }
-                Instruction::JMP(OpCodeInfo {
-                    ref addressing_mode,
-                    ..
-                }) => {
-                    self.jmp(addressing_mode);
-                    1
-                }
-                Instruction::JSR(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.jsr(addressing_mode, bytes);
-                    1
-                }
-                Instruction::LDA(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.lda(addressing_mode);
-                    bytes
-                }
-                Instruction::LDX(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.ldx(addressing_mode);
-                    bytes
-                }
-                Instruction::LDY(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.ldy(addressing_mode);
-                    bytes
-                }
-                Instruction::LSR(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.lsr(addressing_mode);
-                    bytes
-                }
-                Instruction::NOP(OpCodeInfo { bytes, .. }) => bytes,
-                Instruction::ORA(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.ora(addressing_mode);
-                    bytes
-                }
-                Instruction::PHA(OpCodeInfo { bytes, .. }) => {
-                    self.pha();
-                    bytes
-                }
-                Instruction::PHP(OpCodeInfo { bytes, .. }) => {
-                    self.php();
-                    bytes
-                }
-                Instruction::PLA(OpCodeInfo { bytes, .. }) => {
-                    self.pla();
-                    bytes
-                }
-                Instruction::PLP(OpCodeInfo { bytes, .. }) => {
-                    self.plp();
-                    bytes
-                }
-                Instruction::ROL(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.rol(addressing_mode);
-                    bytes
-                }
-                Instruction::ROR(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.rol(addressing_mode);
-                    bytes
-                }
-                Instruction::RTI(_) => {
-                    self.plp();
-                    self.program_counter = self.stack_pop_u16();
-                    1
-                }
-                Instruction::RTS(_) => {
-                    self.program_counter = self.stack_pop_u16() - 1;
-                    1
-                }
-                Instruction::SBC(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.sbc(addressing_mode);
-                    bytes
-                }
-                Instruction::SEC(OpCodeInfo { bytes, .. }) => {
-                    self.status.carry_flag = true;
-                    bytes
-                }
-                Instruction::SED(OpCodeInfo { bytes, .. }) => {
-                    self.status.decimal = true;
-                    bytes
-                }
-                Instruction::SEI(OpCodeInfo { bytes, .. }) => {
-                    self.status.interrupt_disable = true;
-                    bytes
-                }
-                Instruction::STA(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.sta(addressing_mode);
-                    bytes
-                }
-                Instruction::STX(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.stx(addressing_mode);
-                    bytes
-                }
-                Instruction::STY(OpCodeInfo {
-                    ref addressing_mode,
-                    bytes,
-                    ..
-                }) => {
-                    self.sty(addressing_mode);
-                    bytes
-                }
-                Instruction::TAX(OpCodeInfo { bytes, .. }) => {
-                    self.tax();
-                    bytes
-                }
-                Instruction::TAY(OpCodeInfo { bytes, .. }) => {
-                    self.tay();
-                    bytes
-                }
-                Instruction::TSX(OpCodeInfo { bytes, .. }) => {
-                    self.tsx();
-                    bytes
-                }
-                Instruction::TXA(OpCodeInfo { bytes, .. }) => {
-                    self.txa();
-                    bytes
-                }
-                Instruction::TXS(OpCodeInfo { bytes, .. }) => {
-                    self.txs();
-                    bytes
-                }
-                Instruction::TYA(OpCodeInfo { bytes, .. }) => {
-                    self.tya();
-                    bytes
-                }
-            };
-
-            self.program_counter += (advance - 1) as u16
+            self.tick();
         }
     }
 
@@ -668,7 +672,7 @@ impl CPU {
     }
 
     fn jsr(&mut self, mode: &AddressingMode, bytes: u8) {
-        self.stack_push_u16(self.program_counter + (bytes as u16 - 1) - 1);
+        self.stack_push_u16(self.program_counter + (bytes as u16));
         self.program_counter = mode.get_operand_address(self).unwrap_read_address();
     }
 
