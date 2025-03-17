@@ -18,7 +18,17 @@
         pkgs = import nixpkgs { inherit system; };
         naersk-lib = pkgs.callPackage naersk { };
 
-        buildInputs = with pkgs; [ SDL2 ];
+        buildInputs = with pkgs; [
+          xorg.libX11
+          xorg.libXcursor
+          xorg.libxcb
+          xorg.libXi
+          xorg.libXrandr
+          libxkbcommon
+
+          vulkan-loader
+          wayland
+        ];
       in
       {
         defaultPackage = naersk-lib.buildPackage {
@@ -36,6 +46,7 @@
           ];
           inherit buildInputs;
           RUST_SRC_PATH = pkgs.rustPlatform.rustLibSrc;
+          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
         };
       }
     );

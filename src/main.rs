@@ -1,128 +1,77 @@
-use nes_rs::cpu::mem::Memory;
-use nes_rs::cpu::CPU;
-use rand::Rng;
-use sdl2::{
-    event::Event,
-    keyboard::Keycode,
-    pixels::{Color, PixelFormatEnum},
-    EventPump,
+mod emulator;
+mod game;
+
+use emulator::Emulator;
+use std::sync::Arc;
+use tracing::info;
+use winit::{
+    application::ApplicationHandler,
+    dpi::{LogicalSize, PhysicalPosition},
+    event::WindowEvent,
+    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
+    window::{Window, WindowId},
 };
 
-const GAME_CODE: [u8; 309] = [
-    0x20, 0x06, 0x06, 0x20, 0x38, 0x06, 0x20, 0x0d, 0x06, 0x20, 0x2a, 0x06, 0x60, 0xa9, 0x02, 0x85,
-    0x02, 0xa9, 0x04, 0x85, 0x03, 0xa9, 0x11, 0x85, 0x10, 0xa9, 0x10, 0x85, 0x12, 0xa9, 0x0f, 0x85,
-    0x14, 0xa9, 0x04, 0x85, 0x11, 0x85, 0x13, 0x85, 0x15, 0x60, 0xa5, 0xfe, 0x85, 0x00, 0xa5, 0xfe,
-    0x29, 0x03, 0x18, 0x69, 0x02, 0x85, 0x01, 0x60, 0x20, 0x4d, 0x06, 0x20, 0x8d, 0x06, 0x20, 0xc3,
-    0x06, 0x20, 0x19, 0x07, 0x20, 0x20, 0x07, 0x20, 0x2d, 0x07, 0x4c, 0x38, 0x06, 0xa5, 0xff, 0xc9,
-    0x77, 0xf0, 0x0d, 0xc9, 0x64, 0xf0, 0x14, 0xc9, 0x73, 0xf0, 0x1b, 0xc9, 0x61, 0xf0, 0x22, 0x60,
-    0xa9, 0x04, 0x24, 0x02, 0xd0, 0x26, 0xa9, 0x01, 0x85, 0x02, 0x60, 0xa9, 0x08, 0x24, 0x02, 0xd0,
-    0x1b, 0xa9, 0x02, 0x85, 0x02, 0x60, 0xa9, 0x01, 0x24, 0x02, 0xd0, 0x10, 0xa9, 0x04, 0x85, 0x02,
-    0x60, 0xa9, 0x02, 0x24, 0x02, 0xd0, 0x05, 0xa9, 0x08, 0x85, 0x02, 0x60, 0x60, 0x20, 0x94, 0x06,
-    0x20, 0xa8, 0x06, 0x60, 0xa5, 0x00, 0xc5, 0x10, 0xd0, 0x0d, 0xa5, 0x01, 0xc5, 0x11, 0xd0, 0x07,
-    0xe6, 0x03, 0xe6, 0x03, 0x20, 0x2a, 0x06, 0x60, 0xa2, 0x02, 0xb5, 0x10, 0xc5, 0x10, 0xd0, 0x06,
-    0xb5, 0x11, 0xc5, 0x11, 0xf0, 0x09, 0xe8, 0xe8, 0xe4, 0x03, 0xf0, 0x06, 0x4c, 0xaa, 0x06, 0x4c,
-    0x35, 0x07, 0x60, 0xa6, 0x03, 0xca, 0x8a, 0xb5, 0x10, 0x95, 0x12, 0xca, 0x10, 0xf9, 0xa5, 0x02,
-    0x4a, 0xb0, 0x09, 0x4a, 0xb0, 0x19, 0x4a, 0xb0, 0x1f, 0x4a, 0xb0, 0x2f, 0xa5, 0x10, 0x38, 0xe9,
-    0x20, 0x85, 0x10, 0x90, 0x01, 0x60, 0xc6, 0x11, 0xa9, 0x01, 0xc5, 0x11, 0xf0, 0x28, 0x60, 0xe6,
-    0x10, 0xa9, 0x1f, 0x24, 0x10, 0xf0, 0x1f, 0x60, 0xa5, 0x10, 0x18, 0x69, 0x20, 0x85, 0x10, 0xb0,
-    0x01, 0x60, 0xe6, 0x11, 0xa9, 0x06, 0xc5, 0x11, 0xf0, 0x0c, 0x60, 0xc6, 0x10, 0xa5, 0x10, 0x29,
-    0x1f, 0xc9, 0x1f, 0xf0, 0x01, 0x60, 0x4c, 0x35, 0x07, 0xa0, 0x00, 0xa5, 0xfe, 0x91, 0x00, 0x60,
-    0xa6, 0x03, 0xa9, 0x00, 0x81, 0x10, 0xa2, 0x00, 0xa9, 0x01, 0x81, 0x10, 0x60, 0xa2, 0x00, 0xea,
-    0xea, 0xca, 0xd0, 0xfb, 0x60,
-];
-
 fn main() {
-    let sdl_context = sdl2::init().unwrap();
-    let video_subsystem = sdl_context.video().unwrap();
-    let window = video_subsystem
-        .window("NES Snake Game", 32 * 10, 32 * 10)
-        .position_centered()
-        .build()
-        .unwrap();
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::WARN)
+        .init();
 
-    let mut canvas = window.into_canvas().present_vsync().build().unwrap();
-    let mut event_pump = sdl_context.event_pump().unwrap();
-    canvas.set_scale(10., 10.).unwrap();
+    let event_loop = EventLoop::new().unwrap();
+    event_loop.set_control_flow(ControlFlow::Poll);
 
-    let creator = canvas.texture_creator();
-    let mut texture = creator
-        .create_texture_target(PixelFormatEnum::RGB24, 32, 32)
-        .unwrap();
-
-    let mut screen_state = [0 as u8; 32 * 3 * 32];
-    let mut rng = rand::thread_rng();
-
-    let mut cpu = CPU::new();
-    cpu.load(&GAME_CODE);
-    cpu.reset();
-    cpu.run_with_callback(move |cpu| {
-        handle_user_input(cpu, &mut event_pump);
-        cpu.mem_write(0xfe, rng.gen_range(1..16));
-
-        if read_screen_state(cpu, &mut screen_state) {
-            texture.update(None, &screen_state, 32 * 3).unwrap();
-            canvas.copy(&texture, None, None).unwrap();
-            canvas.present();
-        }
-
-        std::thread::sleep(std::time::Duration::new(0, 70_000));
-    });
+    let mut app = App::default();
+    event_loop.run_app(&mut app).unwrap();
 }
 
-fn color(byte: u8) -> Color {
-    match byte {
-        0 => Color::BLACK,
-        1 => Color::WHITE,
-        2 | 9 => Color::GRAY,
-        3 | 10 => Color::RED,
-        4 | 11 => Color::GREEN,
-        5 | 12 => Color::BLUE,
-        6 | 13 => Color::MAGENTA,
-        7 | 14 => Color::YELLOW,
-        _ => Color::CYAN,
+#[derive(Default)]
+struct App {
+    state: Option<Emulator>,
+}
+
+impl ApplicationHandler for App {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        let size = LogicalSize::new(320, 320);
+        let window = Arc::new(
+            event_loop
+                .create_window(
+                    Window::default_attributes()
+                        .with_title("Snake")
+                        .with_position(PhysicalPosition::new(500, 500))
+                        .with_inner_size(size)
+                        .with_min_inner_size(size)
+                        .with_resizable(false),
+                )
+                .unwrap(),
+        );
+        let state = Emulator::new(window.clone());
+
+        self.state = Some(state);
+
+        window.request_redraw();
     }
-}
 
-fn read_screen_state(cpu: &mut CPU, frame: &mut [u8; 32 * 3 * 32]) -> bool {
-    let mut frame_idx = 0;
-    let mut update = false;
-    for i in 0x0200..0x0600 {
-        let (b1, b2, b3) = color(cpu.mem_read(i)).rgb();
-        if frame[frame_idx] != b1 || frame[frame_idx + 1] != b2 || frame[frame_idx + 2] != b3 {
-            frame[frame_idx] = b1;
-            frame[frame_idx + 1] = b2;
-            frame[frame_idx + 2] = b3;
-            update = true;
-        }
-        frame_idx += 3
-    }
-    update
-}
+    fn window_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        _window_id: WindowId,
+        event: WindowEvent,
+    ) {
+        let state = self.state.as_mut().unwrap();
 
-fn handle_user_input(cpu: &mut CPU, event_pump: &mut EventPump) {
-    for event in event_pump.poll_iter() {
         match event {
-            Event::Quit { .. }
-            | Event::KeyDown {
-                keycode: Some(Keycode::Escape),
-                ..
-            } => std::process::exit(0),
-            Event::KeyDown {
-                keycode: Some(Keycode::W),
-                ..
-            } => cpu.mem_write(0xFF, 0x77),
-            Event::KeyDown {
-                keycode: Some(Keycode::A),
-                ..
-            } => cpu.mem_write(0xFF, 0x61),
-            Event::KeyDown {
-                keycode: Some(Keycode::S),
-                ..
-            } => cpu.mem_write(0xFF, 0x73),
-            Event::KeyDown {
-                keycode: Some(Keycode::D),
-                ..
-            } => cpu.mem_write(0xFF, 0x64),
+            WindowEvent::CloseRequested => {
+                info!("Close Requested; stopping");
+                event_loop.exit();
+            }
+            WindowEvent::RedrawRequested => {
+                state.render(event_loop);
+                state.window().request_redraw();
+            }
+            WindowEvent::Resized(size) => state.resize(size, event_loop),
+            WindowEvent::KeyboardInput { event, .. } => {
+                state.input(event, event_loop);
+            }
             _ => {}
         }
     }
