@@ -1,11 +1,28 @@
 [package]
 name = "nes-rs"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 rand = "0.9.0"
-winit = "0.30.9"
+winit = { version = "0.30.9", default-features = false, features = [
+  "ahash",
+  "bytemuck",
+  "memmap2",
+  "percent-encoding",
+  "rwh_06",
+  "sctk",
+  "sctk-adwaita",
+  "wayland",
+  "wayland-backend",
+  "wayland-client",
+  "wayland-csd-adwaita",
+  "wayland-protocols",
+  "wayland-protocols-plasma",
+  "x11",
+  "x11-dl",
+  "x11rb",
+] }
 pixels = "0.15.0"
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"

@@ -1,22 +1,39 @@
 {
   inputs = {
-    naersk.url = "github:nix-community/naersk/master";
+    crane.url = "github:ipetkov/crane";
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
     {
+      self,
       nixpkgs,
       flake-utils,
-      naersk,
+      crane,
+      rust-overlay,
       ...
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
       let
-        pkgs = import nixpkgs { inherit system; };
-        naersk-lib = pkgs.callPackage naersk { };
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = [ (import rust-overlay) ];
+        };
+
+        toolchain = pkgs.rust-bin.stable.latest.default.override {
+          extensions = [
+            "rust-src"
+            "rustfmt"
+            "clippy"
+          ];
+        };
+        craneLib = (crane.mkLib pkgs).overrideToolchain toolchain;
 
         buildInputs = with pkgs; [
           xorg.libX11
@@ -29,23 +46,25 @@
           vulkan-loader
           wayland
         ];
+
+        nativeBuildInputs = with pkgs; [
+          wayland.dev
+          pkg-config
+          toolchain
+        ];
       in
       {
-        defaultPackage = naersk-lib.buildPackage {
-          src = ./.;
-          inherit buildInputs;
+        packages = {
+          default = craneLib.buildPackage {
+            src = craneLib.cleanCargoSource ./.;
+            strictDeps = true;
+            inherit buildInputs nativeBuildInputs;
+          };
         };
+
         devShell = pkgs.mkShell {
-          nativeBuildInputs = with pkgs; [
-            cargo
-            rustc
-            rustfmt
-            pre-commit
-            rustPackages.clippy
-            gdb
-          ];
-          inherit buildInputs;
-          RUST_SRC_PATH = pkgs.rustPlatform.rustLibSrc;
+          inputsFrom = [ self.packages.${system}.default ];
+          packages = [ pkgs.gdb ];
           LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
         };
       }
