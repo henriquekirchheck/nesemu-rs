@@ -56,7 +56,7 @@ impl Emulator {
     }
 
     pub fn render(&mut self, event_loop: &ActiveEventLoop) {
-        self.update();
+        self.update(event_loop);
 
         if self.draw() {
             if let Err(err) = self.screen.render() {
@@ -92,9 +92,11 @@ impl Emulator {
         }
     }
 
-    fn update(&mut self) {
+    fn update(&mut self, event_loop: &ActiveEventLoop) {
         self.cpu.mem_write(0xfe, self.rng.random_range(1..16));
-        self.cpu.tick();
+        if self.cpu.tick() {
+            event_loop.exit();
+        };
         trace!("tick happened");
     }
 

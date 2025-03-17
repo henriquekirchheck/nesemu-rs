@@ -84,7 +84,8 @@ impl CPU {
         self.run_with_callback(|_| {});
     }
 
-    pub fn tick(&mut self) {
+    /// Returns whether to stop the app
+    pub fn tick(&mut self) -> bool {
         let code = self.mem_read(self.program_counter);
         self.program_counter += 1;
 
@@ -220,7 +221,7 @@ impl CPU {
                 }
             }
             Instruction::BRK(_) => {
-                return;
+                return true;
             }
             Instruction::BVC(OpCodeInfo {
                 ref addressing_mode,
@@ -501,13 +502,17 @@ impl CPU {
             }
         };
 
-        self.program_counter += (advance - 1) as u16
+        self.program_counter += (advance - 1) as u16;
+
+        false
     }
 
-    pub fn run_with_callback(&mut self, mut callback: impl FnMut(&mut CPU)) -> ! {
+    pub fn run_with_callback(&mut self, mut callback: impl FnMut(&mut CPU)) {
         loop {
             callback(self);
-            self.tick();
+            if self.tick() {
+                break;
+            };
         }
     }
 
