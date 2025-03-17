@@ -31,13 +31,24 @@ struct App {
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let size = LogicalSize::new(320, 320);
+        let size = LogicalSize::new(32 * 10 * 2, 32 * 10 * 2);
+        let monitor_size = event_loop
+            .primary_monitor()
+            .or_else(|| event_loop.available_monitors().next())
+            .unwrap()
+            .size();
+
+        let position = PhysicalPosition::new(
+            monitor_size.width / 2 + size.width / 2,
+            monitor_size.height / 2 + size.height / 2,
+        );
+
         let window = Arc::new(
             event_loop
                 .create_window(
                     Window::default_attributes()
                         .with_title("Snake")
-                        .with_position(PhysicalPosition::new(500, 500))
+                        .with_position(position)
                         .with_inner_size(size)
                         .with_min_inner_size(size)
                         .with_resizable(false),
