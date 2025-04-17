@@ -3,8 +3,10 @@ pub mod mem;
 mod opcodes;
 mod registers;
 mod status;
+mod bus;
 
 use addressing_mode::AddressingMode;
+use bus::Bus;
 use mem::{Memory, STACK, STACK_RESET, Stack};
 use registers::Registers;
 use status::ProcessorStatus;
@@ -15,17 +17,26 @@ pub struct CPU {
     program_counter: u16,
     registers: Registers,
     status: ProcessorStatus,
-    memory: [u8; 0xFFFF],
+    bus: Bus,
+    // memory: [u8; 0xFFFF],
     stack_pointer: u8,
 }
 
 impl Memory for CPU {
-    fn mem_read(&self, addr: u16) -> u8 {
-        self.memory[addr as usize]
+    fn mem_read_u16(&self, addr: u16) -> u16 {
+        self.bus.mem_read_u16(addr)
     }
 
+    fn mem_write_u16(&mut self, addr: u16, data: u16) {
+        self.bus.mem_write_u16(addr, data)
+    }
+    
+    fn mem_read(&self, addr: u16) -> u8 {
+        self.bus.mem_read(addr)
+    }
+    
     fn mem_write(&mut self, addr: u16, data: u8) {
-        self.memory[addr as usize] = data;
+        self.bus.mem_write(addr, data)
     }
 }
 
@@ -48,7 +59,7 @@ impl CPU {
             stack_pointer: STACK_RESET,
             registers: Registers::default(),
             status: ProcessorStatus::default(),
-            memory: [0; 0xFFFF],
+            bus: Bus::default(),
         }
     }
 
@@ -60,8 +71,12 @@ impl CPU {
     }
 
     pub fn load(&mut self, program: &[u8]) {
-        self.memory[0x0600..(0x0600 + program.len())].copy_from_slice(program);
-        self.mem_write_u16(0xFFFC, 0x0600)
+        // self.memory[0x0600..(0x0600 + program.len())].copy_from_slice(program);
+        // self.mem_write_u16(0xFFFC, 0x0600)
+        for i in 0..(program.len() as u16) {
+            self.mem_write(0x0000 + i, program[i as usize]);
+        }
+        self.mem_write_u16(0xFFFC, 0x0000)
     }
 
     pub fn load_and_run(&mut self, program: &[u8]) {
