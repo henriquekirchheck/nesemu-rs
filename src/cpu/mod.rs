@@ -5,7 +5,7 @@ mod registers;
 mod status;
 
 use addressing_mode::AddressingMode;
-use mem::{Memory, Stack, STACK, STACK_RESET};
+use mem::{Memory, STACK, STACK_RESET, Stack};
 use registers::Registers;
 use status::ProcessorStatus;
 
@@ -520,17 +520,24 @@ impl CPU {
         let addr = mode.get_operand_address(self).unwrap_read_address();
         let value = self.mem_read(addr);
         let (result, overflow) = self.registers.a.overflowing_add(value);
-        self.registers.a = result + self.status.carry_flag as u8;
+        let (result, overflow_carry) = result.overflowing_add(self.status.carry_flag as u8);
+        self.status.overflow_flag = (value ^ result) & (result ^ self.registers.a) & 0x80 != 0;
+        self.registers.a = result;
         self.status
-            .update_carry_overflow_zero_neg(self.registers.a, overflow);
+            .update_carry_zero_neg(self.registers.a, overflow || overflow_carry);
     }
     fn sbc(&mut self, mode: &AddressingMode) {
         let addr = mode.get_operand_address(self).unwrap_read_address();
         let value = self.mem_read(addr);
-        let (result, overflow) = self.registers.a.overflowing_sub(value);
-        self.registers.a = result - !self.status.carry_flag as u8;
+        let (result, overflow) = self
+            .registers
+            .a
+            .overflowing_add(((value as i8).wrapping_neg().wrapping_sub(1)) as u8);
+        let (result, overflow_carry) = result.overflowing_add(self.status.carry_flag as u8);
+        self.status.overflow_flag = (value ^ result) & (result ^ self.registers.a) & 0x80 != 0;
+        self.registers.a = result;
         self.status
-            .update_carry_overflow_zero_neg(self.registers.a, overflow);
+            .update_carry_zero_neg(self.registers.a, overflow || overflow_carry);
     }
 
     fn and(&mut self, mode: &AddressingMode) {
@@ -555,7 +562,7 @@ impl CPU {
             }
             x => panic!("asl does not support {x:?}"),
         };
-        self.status.update_carry_overflow_zero_neg(result, overflow);
+        self.status.update_carry_zero_neg(result, overflow);
     }
 
     fn rol(&mut self, mode: &AddressingMode) {

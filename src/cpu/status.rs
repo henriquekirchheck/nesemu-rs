@@ -20,7 +20,7 @@ impl ProcessorStatus {
         self.negative_flag = (value1.wrapping_sub(value2)) & 0b1000_0000 != 0;
     }
 
-    pub fn update_carry_overflow_zero_neg(&mut self, value: u8, overflow: bool) {
+    pub fn update_carry_zero_neg(&mut self, value: u8, overflow: bool) {
         self.update_zero_neg_flags(value);
         self.carry_flag = overflow;
     }
