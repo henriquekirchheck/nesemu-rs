@@ -1,15 +1,17 @@
 mod addressing_mode;
+mod bus;
 pub mod mem;
 mod opcodes;
 mod registers;
 mod status;
-mod bus;
 
 use addressing_mode::AddressingMode;
 use bus::Bus;
 use mem::{Memory, STACK, STACK_RESET, Stack};
 use registers::Registers;
 use status::ProcessorStatus;
+
+use crate::nes::NesRom;
 
 use self::opcodes::{Instruction, OpCodeInfo};
 
@@ -18,7 +20,6 @@ pub struct CPU {
     registers: Registers,
     status: ProcessorStatus,
     bus: Bus,
-    // memory: [u8; 0xFFFF],
     stack_pointer: u8,
 }
 
@@ -30,11 +31,11 @@ impl Memory for CPU {
     fn mem_write_u16(&mut self, addr: u16, data: u16) {
         self.bus.mem_write_u16(addr, data)
     }
-    
+
     fn mem_read(&self, addr: u16) -> u8 {
         self.bus.mem_read(addr)
     }
-    
+
     fn mem_write(&mut self, addr: u16, data: u8) {
         self.bus.mem_write(addr, data)
     }
@@ -63,6 +64,16 @@ impl CPU {
         }
     }
 
+    pub fn with_rom(rom: NesRom) -> Self {
+        CPU {
+            program_counter: 0,
+            stack_pointer: STACK_RESET,
+            registers: Registers::default(),
+            status: ProcessorStatus::default(),
+            bus: Bus::new(rom),
+        }
+    }
+
     pub fn reset(&mut self) {
         self.registers.reset();
         self.status.reset();
@@ -70,7 +81,7 @@ impl CPU {
         self.program_counter = self.mem_read_u16(0xFFFC);
     }
 
-    pub fn load(&mut self, program: &[u8]) {
+    pub fn load_ram(&mut self, program: &[u8]) {
         // self.memory[0x0600..(0x0600 + program.len())].copy_from_slice(program);
         // self.mem_write_u16(0xFFFC, 0x0600)
         for i in 0..(program.len() as u16) {
@@ -79,17 +90,37 @@ impl CPU {
         self.mem_write_u16(0xFFFC, 0x0000)
     }
 
-    pub fn load_and_run(&mut self, program: &[u8]) {
-        self.load(program);
+    pub fn load_ram_and_run(&mut self, program: &[u8]) {
+        self.load_ram(program);
         self.reset();
         self.run();
     }
 
-    pub fn load_modify_and_run<Func>(&mut self, program: &[u8], modify: Func)
+    pub fn load_ram_modify_and_run<Func>(&mut self, program: &[u8], modify: Func)
     where
         Func: Fn(&mut Self),
     {
-        self.load(program);
+        self.load_ram(program);
+        self.reset();
+        modify(self);
+        self.run();
+    }
+
+    pub fn load_rom(&mut self, rom: NesRom) {
+        self.bus = Bus::new(rom)
+    }
+
+    pub fn load_rom_and_run(&mut self, rom: NesRom) {
+        self.load_rom(rom);
+        self.reset();
+        self.run();
+    }
+
+    pub fn load_rom_modify_and_run<Func>(&mut self, rom: NesRom, modify: Func)
+    where
+        Func: Fn(&mut Self),
+    {
+        self.load_rom(rom);
         self.reset();
         modify(self);
         self.run();
@@ -851,7 +882,7 @@ mod test {
     #[test]
     fn test_0xa9_lda_immediate_load_data() {
         let mut cpu = CPU::new();
-        cpu.load_and_run(&[0xa9, 0x05, 0x00]);
+        cpu.load_ram_and_run(&[0xa9, 0x05, 0x00]);
         assert_eq!(cpu.registers.a, 0x05);
         assert!(<ProcessorStatus as Into<u8>>::into(cpu.status) & 0b0000_0010 == 0b00);
         assert!(<ProcessorStatus as Into<u8>>::into(cpu.status) & 0b1000_0000 == 0);
@@ -860,14 +891,14 @@ mod test {
     #[test]
     fn test_0xa9_lda_zero_flag() {
         let mut cpu = CPU::new();
-        cpu.load_and_run(&[0xa9, 0x00, 0x00]);
+        cpu.load_ram_and_run(&[0xa9, 0x00, 0x00]);
         assert!(<ProcessorStatus as Into<u8>>::into(cpu.status) & 0b0000_0010 == 0b10);
     }
 
     #[test]
     fn test_0xaa_tax_move_a_to_x() {
         let mut cpu = CPU::new();
-        cpu.load_modify_and_run(&[0xaa, 0x00], |cpu| cpu.registers.a = 10);
+        cpu.load_ram_modify_and_run(&[0xaa, 0x00], |cpu| cpu.registers.a = 10);
 
         assert_eq!(cpu.registers.x, 10)
     }
@@ -875,7 +906,7 @@ mod test {
     #[test]
     fn test_5_ops_working_together() {
         let mut cpu = CPU::new();
-        cpu.load_and_run(&[0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
+        cpu.load_ram_and_run(&[0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
 
         assert_eq!(cpu.registers.x, 0xc1)
     }
@@ -883,7 +914,7 @@ mod test {
     #[test]
     fn test_inx_overflow() {
         let mut cpu = CPU::new();
-        cpu.load_modify_and_run(&[0xe8, 0xe8, 0x00], |cpu| cpu.registers.x = 0xff);
+        cpu.load_ram_modify_and_run(&[0xe8, 0xe8, 0x00], |cpu| cpu.registers.x = 0xff);
 
         assert_eq!(cpu.registers.x, 1)
     }
@@ -893,7 +924,7 @@ mod test {
         let mut cpu = CPU::new();
         cpu.mem_write(0x10, 0x55);
 
-        cpu.load_and_run(&[0xa5, 0x10, 0x00]);
+        cpu.load_ram_and_run(&[0xa5, 0x10, 0x00]);
 
         assert_eq!(cpu.registers.a, 0x55);
     }

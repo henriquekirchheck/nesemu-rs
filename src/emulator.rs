@@ -1,8 +1,12 @@
-use std::sync::Arc;
+use std::{fs, path::PathBuf, sync::Arc};
 
-use nes_rs::cpu::{mem::Memory, CPU};
-use pixels::{wgpu::TextureFormat, Pixels, PixelsBuilder, SurfaceTexture};
-use rand::{rng, rngs::ThreadRng, Rng};
+use clap::Parser;
+use nes_rs::{
+    cpu::{CPU, mem::Memory},
+    nes::NesRom,
+};
+use pixels::{Pixels, PixelsBuilder, SurfaceTexture, wgpu::TextureFormat};
+use rand::{Rng, rng, rngs::ThreadRng};
 use tracing::{error, trace};
 use winit::{
     dpi::PhysicalSize,
@@ -12,8 +16,6 @@ use winit::{
     window::Window,
 };
 
-use crate::game;
-
 pub struct Emulator {
     #[allow(dead_code)]
     window: Arc<Window>,
@@ -22,8 +24,21 @@ pub struct Emulator {
     rng: ThreadRng,
 }
 
+#[derive(Debug, Parser)]
+struct Cli {
+    rom: PathBuf,
+}
+
 impl Emulator {
     pub fn new(window: Arc<Window>) -> Self {
+        let cli = Cli::parse();
+        let rom_bytes = fs::read(cli.rom).unwrap();
+        let (_, rom) = NesRom::parse(&rom_bytes).unwrap();
+
+        let rng = rng();
+        let mut cpu = CPU::with_rom(rom);
+        cpu.reset();
+
         let screen = {
             let size = window.inner_size();
             let surface_texture = SurfaceTexture::new(size.width, size.height, window.clone());
@@ -32,10 +47,7 @@ impl Emulator {
                 .build()
                 .unwrap()
         };
-        let rng = rng();
-        let mut cpu = CPU::new();
-        cpu.load(&game::GAME_CODE);
-        cpu.reset();
+
         Self {
             window,
             screen,

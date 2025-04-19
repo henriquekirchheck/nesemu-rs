@@ -12,8 +12,8 @@ use nom::{
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
-const PRG_ROM_PAGE_SIZE: usize = 0x4000;
-const CHR_ROM_PAGE_SIZE: usize = 0x2000;
+pub const PRG_ROM_PAGE_SIZE: usize = 0x4000;
+pub const CHR_ROM_PAGE_SIZE: usize = 0x2000;
 
 #[derive(Debug, PartialEq)]
 pub struct NesRom {

@@ -1,5 +1,4 @@
 mod emulator;
-mod game;
 
 use emulator::Emulator;
 use std::sync::Arc;

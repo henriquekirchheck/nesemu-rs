@@ -30,3 +30,4 @@ nom = "8.0.0"
 num-traits = "0.2.19"
 num-derive = "0.4.2"
 thiserror = "2.0.12"
+clap = { version = "4.5.37", features = ["derive"] }
