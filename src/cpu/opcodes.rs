@@ -23,6 +23,30 @@ macro_rules! create_opcodes {
                     _ => panic!("Not Implemented {:x}", opcode)
                 }
             }
+
+            pub fn to_opcode(&self) -> u8 {
+                #[allow(unreachable_patterns)]
+                match self {
+                    $($(Self::$instruction(OpCodeInfo { addressing_mode: AddressingMode::$addressing_mode, bytes: $bytes, cycles: $cycles }) => $opcode,)+)+
+                    _ => unreachable!("This can only be called from valid contructed Instructions, this is the invalid instruction: {self:?}")
+                }
+            }
+
+            pub fn to_opcode_name(&self) -> &'static str {
+                #[allow(unreachable_patterns)]
+                match self {
+                    $($(Self::$instruction(OpCodeInfo { addressing_mode: AddressingMode::$addressing_mode, bytes: $bytes, cycles: $cycles }) => stringify!($instruction),)+)+
+                    _ => unreachable!("This can only be called from valid contructed Instructions, this is the invalid instruction: {self:?}")
+                }
+            }
+
+            pub fn to_opcode_info(&self) -> &OpCodeInfo {
+                #[allow(unreachable_patterns)]
+                match self {
+                    $(Self::$instruction(x) => x,)+
+                    _ => unreachable!("This can only be called from valid contructed Instructions, this is the invalid instruction: {self:?}")
+                }
+            }
         }
 
         impl From<u8> for Instruction {

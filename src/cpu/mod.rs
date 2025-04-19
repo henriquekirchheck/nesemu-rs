@@ -4,6 +4,7 @@ pub mod mem;
 mod opcodes;
 mod registers;
 mod status;
+mod trace;
 
 use addressing_mode::AddressingMode;
 use bus::Bus;
@@ -71,6 +72,16 @@ impl CPU {
             registers: Registers::default(),
             status: ProcessorStatus::default(),
             bus: Bus::new(rom),
+        }
+    }
+
+    pub fn with_bus(bus: Bus) -> Self {
+        CPU {
+            program_counter: 0,
+            stack_pointer: STACK_RESET,
+            registers: Registers::default(),
+            status: ProcessorStatus::default(),
+            bus,
         }
     }
 
